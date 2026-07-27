@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>এডমিন প্যানেল — ফটো গ্যালারি</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700;800&family=Noto+Serif+Bengali:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <div class="brand-wrap">
+      <div class="logo-mark">শি</div>
+      <div class="brand"><h1 id="brand-name">ছাত্রশিবির</h1><span>এডমিন প্যানেল</span></div>
+    </div>
+    <nav class="main-nav">
+      <a href="index.html">সাইটে ফিরে যান</a>
+      <a href="gallery.html">গ্যালারি দেখুন</a>
+    </nav>
+  </div>
+</header>
+
+<div class="admin-wrap">
+
+  <!-- লগইন ফর্ম -->
+  <div class="admin-card" id="login-card">
+    <h2>এডমিন লগইন</h2>
+    <div class="sub">শুধুমাত্র অনুমোদিত এডমিন ইমেইল দিয়ে লগইন করা যাবে।</div>
+    <div id="login-msg"></div>
+    <div class="field">
+      <label>ইমেইল</label>
+      <input type="email" id="login-email" placeholder="admin@example.com">
+    </div>
+    <div class="field">
+      <label>পাসওয়ার্ড</label>
+      <input type="password" id="login-password" placeholder="••••••••">
+    </div>
+    <button class="btn btn-sky" id="login-btn" style="width:100%;">লগইন করুন</button>
+  </div>
+
+  <!-- আপলোড প্যানেল (লগইনের পর দেখা যাবে) -->
+  <div class="admin-card" id="upload-card" style="display:none;margin-top:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <h2>ছবি আপলোড করুন</h2>
+        <div class="sub" id="who">লগইন করা আছে</div>
+      </div>
+      <button class="btn btn-outline" id="logout-btn" style="border-color:var(--sky-deep);color:var(--sky-deep);">লগআউট</button>
+    </div>
+
+    <div id="upload-msg"></div>
+
+    <div class="dropzone" id="dropzone">
+      <div style="font-size:1.8rem;margin-bottom:8px;">📷</div>
+      <div>এখানে ছবি টেনে আনো, অথবা ক্লিক করে বেছে নাও</div>
+      <div style="font-size:.78rem;color:#5b7686;margin-top:6px;">একসাথে একাধিক ছবি নির্বাচন করা যাবে (JPG/PNG, প্রতিটি সর্বোচ্চ ৮MB)</div>
+      <input type="file" id="file-input" accept="image/*" multiple>
+    </div>
+
+    <div class="field">
+      <label>ক্যাপশন (ঐচ্ছিক, সব ছবিতে প্রযোজ্য হবে)</label>
+      <input type="text" id="caption-input" placeholder="যেমন: থানা সম্মেলন, ২৬ জুলাই ২০২৬">
+    </div>
+
+    <div id="upload-progress"></div>
+
+    <hr style="border:none;border-top:1px solid var(--line);margin:24px 0;">
+
+    <h3 style="font-size:1rem;color:var(--sky-deep);margin-bottom:10px;">বর্তমান গ্যালারি (ক্লিক করে মুছে ফেলো)</h3>
+    <div class="admin-gallery" id="admin-gallery"><div class="loading-msg">লোড হচ্ছে...</div></div>
+  </div>
+
+</div>
+
+<script src="config.js"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import { getFirestore, collection, addDoc, deleteDoc, doc, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
+  document.getElementById('brand-name').textContent = (ORG_NAME_SHORT || 'ছাত্রশিবির').split('—')[0].trim();
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const storage = getStorage(app);
+
+  const loginCard = document.getElementById('login-card');
+  const uploadCard = document.getElementById('upload-card');
+  const loginMsg = document.getElementById('login-msg');
+
+  document.getElementById('login-btn').onclick = async () => {
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    loginMsg.innerHTML = '';
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (e) {
+      loginMsg.innerHTML = `<div class="msg error">লগইন ব্যর্থ: ${e.message}</div>`;
+    }
+  };
+
+  document.getElementById('logout-btn').onclick = () => signOut(auth);
+
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      loginCard.style.display = 'none';
+      uploadCard.style.display = 'block';
+      document.getElementById('who').textContent = `লগইন করা আছে: ${user.email}`;
+      loadAdminGallery();
+    } else {
+      loginCard.style.display = 'block';
+      uploadCard.style.display = 'none';
+    }
+  });
+
+  // --- Upload logic ---
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('file-input');
+  const progressWrap = document.getElementById('upload-progress');
+  const uploadMsg = document.getElementById('upload-msg');
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('drag');
+    handleFiles(e.dataTransfer.files);
+  });
+  fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+  function handleFiles(fileList) {
+    const files = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+    if (!files.length) return;
+    uploadMsg.innerHTML = '';
+    const caption = document.getElementById('caption-input').value.trim();
+
+    files.forEach(file => {
+      if (file.size > 8 * 1024 * 1024) {
+        uploadMsg.innerHTML += `<div class="msg error">${file.name} — ৮MB এর চেয়ে বড়, স্কিপ করা হলো</div>`;
+        return;
+      }
+      const row = document.createElement('div');
+      row.className = 'upload-row';
+      row.innerHTML = `<span>${file.name}</span><div class="bar"><span></span></div><span class="pct">0%</span>`;
+      progressWrap.appendChild(row);
+      const bar = row.querySelector('.bar span');
+      const pct = row.querySelector('.pct');
+
+      const path = `gallery/${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, path);
+      const task = uploadBytesResumable(storageRef, file);
+
+      task.on('state_changed',
+        (snap) => {
+          const p = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+          bar.style.width = p + '%';
+          pct.textContent = p + '%';
+        },
+        (err) => {
+          row.innerHTML = `<span>${file.name} — ব্যর্থ: ${err.message}</span>`;
+        },
+        async () => {
+          const url = await getDownloadURL(task.snapshot.ref);
+          await addDoc(collection(db, "gallery_photos"), {
+            url, storagePath: path, caption,
+            createdAt: serverTimestamp()
+          });
+          pct.textContent = '✓ সম্পন্ন';
+          loadAdminGallery();
+        }
+      );
+    });
+    fileInput.value = '';
+  }
+
+  // --- Existing gallery (with delete) ---
+  function loadAdminGallery() {
+    const grid = document.getElementById('admin-gallery');
+    const q = query(collection(db, "gallery_photos"), orderBy("createdAt", "desc"));
+    onSnapshot(q, (snapshot) => {
+      if (snapshot.empty) {
+        grid.innerHTML = '<div class="loading-msg">এখনো কোনো ছবি নেই।</div>';
+        return;
+      }
+      grid.innerHTML = '';
+      snapshot.forEach(docSnap => {
+        const d = docSnap.data();
+        const item = document.createElement('div');
+        item.className = 'admin-photo';
+        item.innerHTML = `<img src="${d.url}"><button data-id="${docSnap.id}" data-path="${d.storagePath || ''}">মুছুন</button>`;
+        item.querySelector('button').onclick = async (e) => {
+          const id = e.target.dataset.id;
+          const path = e.target.dataset.path;
+          if (!confirm('এই ছবিটি মুছে ফেলতে চাও?')) return;
+          try {
+            if (path) await deleteObject(ref(storage, path));
+          } catch (err) { /* file may already be gone from storage */ }
+          await deleteDoc(doc(db, "gallery_photos", id));
+        };
+        grid.appendChild(item);
+      });
+    });
+  }
+</script>
+</body>
+</html>

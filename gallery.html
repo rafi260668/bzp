@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ফটো গ্যালারি — বাংলাদেশ ইসলামী ছাত্রশিবির, বগুড়া জেলা পূর্ব</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700;800&family=Noto+Serif+Bengali:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div>আসসালামু আলাইকুম — <span id="topbar-org"></span> এর ফটো গ্যালারি</div>
+  <div style="display:flex;gap:16px;"><a href="admin.html">এডমিন লগইন</a></div>
+</div>
+
+<header class="site-header">
+  <div class="header-inner">
+    <div class="brand-wrap">
+      <div class="logo-mark">শি</div>
+      <div class="brand"><h1 id="brand-name">ছাত্রশিবির</h1><span>বগুড়া জেলা পূর্ব</span></div>
+    </div>
+    <nav class="main-nav">
+      <a href="index.html">হোম</a>
+      <a href="index.html#branches">১৩ থানা শাখা</a>
+      <a href="gallery.html" class="active">ফটো গ্যালারি</a>
+      <a href="index.html#contact">যোগাযোগ</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero" style="padding:44px 24px 60px;">
+  <div class="hero-inner">
+    <span class="eyebrow">গ্যালারি</span>
+    <h2 style="font-size:1.9rem;">কর্মসূচি ও অনুষ্ঠানের ছবি</h2>
+    <p>জেলা ও থানা পর্যায়ের বিভিন্ন কার্যক্রমের ছবি — এডমিন প্যানেল থেকে নিয়মিত আপডেট হয়।</p>
+  </div>
+</section>
+
+<section>
+  <div class="section-inner">
+    <div class="gallery-grid" id="gallery-grid">
+      <div class="loading-msg">ছবি লোড হচ্ছে...</div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="foot-bottom" style="border:none;margin:0 auto;">
+    <span>© ২০২৬ <span id="foot-org"></span>। সর্বস্বত্ব সংরক্ষিত।</span>
+  </div>
+</footer>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" id="lightbox-close">&times;</button>
+  <div>
+    <img id="lightbox-img" src="" alt="">
+    <div class="lightbox-caption" id="lightbox-caption"></div>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getFirestore, collection, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  document.getElementById('topbar-org').textContent = ORG_NAME_SHORT;
+  document.getElementById('brand-name').textContent = ORG_NAME_SHORT.split('—')[0].trim() || 'ছাত্রশিবির';
+  document.getElementById('foot-org').textContent = ORG_NAME_SHORT;
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  const grid = document.getElementById('gallery-grid');
+  const q = query(collection(db, "gallery_photos"), orderBy("createdAt", "desc"));
+
+  // রিয়েল-টাইম আপডেট: এডমিন কোনো ছবি আপলোড করলেই এই পেজ নিজে থেকে রিফ্রেশ হয়ে যাবে
+  onSnapshot(q, (snapshot) => {
+    if (snapshot.empty) {
+      grid.innerHTML = '<div class="gallery-empty">এখনো কোনো ছবি আপলোড করা হয়নি।</div>';
+      return;
+    }
+    grid.innerHTML = '';
+    snapshot.forEach(doc => {
+      const d = doc.data();
+      const item = document.createElement('div');
+      item.className = 'gallery-item';
+      item.innerHTML = `<img src="${d.url}" alt="${d.caption || ''}" loading="lazy">
+        <div class="gallery-caption">${d.caption || ''}</div>`;
+      item.addEventListener('click', () => openLightbox(d.url, d.caption || ''));
+      grid.appendChild(item);
+    });
+  }, (err) => {
+    grid.innerHTML = `<div class="gallery-empty">ছবি লোড করা যায়নি। Firebase কনফিগ ঠিক আছে কিনা দেখো।<br><small>${err.message}</small></div>`;
+  });
+
+  const lightbox = document.getElementById('lightbox');
+  const lbImg = document.getElementById('lightbox-img');
+  const lbCaption = document.getElementById('lightbox-caption');
+  function openLightbox(url, caption){
+    lbImg.src = url;
+    lbCaption.textContent = caption;
+    lightbox.classList.add('open');
+  }
+  document.getElementById('lightbox-close').onclick = () => lightbox.classList.remove('open');
+  lightbox.addEventListener('click', (e) => { if(e.target === lightbox) lightbox.classList.remove('open'); });
+</script>
+</body>
+</html>
